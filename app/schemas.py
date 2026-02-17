@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.models import EmployeeStatus
+from app.models import EmployeeStatus, UserRole
 
 
 class EmployeeBase(BaseModel):
@@ -135,3 +135,16 @@ class DashboardSummary(BaseModel):
     unvested_options: int
     exercised_options: int
     grant_summaries: list[GrantVestingSummary]
+
+
+class AuthUser(BaseModel):
+    id: int
+    email: str
+    full_name: str
+    role: UserRole
+    employee_id: int | None
+
+
+class AuthSession(BaseModel):
+    authenticated: bool
+    user: AuthUser | None = None

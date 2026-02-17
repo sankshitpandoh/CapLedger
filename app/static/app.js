@@ -9,6 +9,14 @@ const state = {
   grantSearch: "",
   selectedExerciseGrantId: null,
   exerciseHistory: [],
+  auth: {
+    authenticated: false,
+    role: null,
+    full_name: "",
+    email: "",
+    employee_id: null,
+  },
+  allowedScreens: ["dashboard"],
 };
 
 const screenMeta = {
@@ -26,11 +34,18 @@ const screenMeta = {
   },
   exercises: {
     title: "Exercises",
-    subtitle: "Record option exercises and review grant-level execution history.",
+    subtitle: "Review option exercise history and availability.",
   },
 };
 
 const els = {
+  authGate: document.getElementById("authGate"),
+  appShell: document.getElementById("appShell"),
+  workspaceSubtitle: document.getElementById("workspaceSubtitle"),
+  currentUserName: document.getElementById("currentUserName"),
+  currentUserMeta: document.getElementById("currentUserMeta"),
+  logoutBtn: document.getElementById("logoutBtn"),
+  poolPanel: document.getElementById("poolPanel"),
   toast: document.getElementById("toast"),
   navButtons: document.getElementById("navButtons"),
   screenTitle: document.getElementById("screenTitle"),
@@ -66,6 +81,12 @@ async function api(path, options = {}) {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
+
+  if (response.status === 401) {
+    state.auth.authenticated = false;
+    renderAuthGate();
+    throw new Error("Session expired. Please sign in again.");
+  }
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
@@ -167,7 +188,15 @@ function getSummaryByGrantId(grantId) {
 }
 
 function normalizeScreen(screen) {
-  return screenMeta[screen] ? screen : "dashboard";
+  if (!screenMeta[screen]) {
+    return "dashboard";
+  }
+
+  if (!state.allowedScreens.includes(screen)) {
+    return "dashboard";
+  }
+
+  return screen;
 }
 
 function setScreen(screen) {
@@ -197,6 +226,35 @@ function applyRouteFromHash() {
   setScreen(normalizeScreen(raw || "dashboard"));
 }
 
+function renderAuthGate() {
+  if (!state.auth.authenticated) {
+    els.appShell.classList.add("hidden");
+    els.authGate.classList.remove("hidden");
+    return;
+  }
+
+  els.authGate.classList.add("hidden");
+  els.appShell.classList.remove("hidden");
+}
+
+function applyRoleUI() {
+  const isAdmin = state.auth.role === "admin";
+  state.allowedScreens = isAdmin ? ["dashboard", "employees", "grants", "exercises"] : ["dashboard", "exercises"];
+
+  document.querySelectorAll(".admin-only").forEach((el) => {
+    el.classList.toggle("hidden", !isAdmin);
+  });
+
+  els.currentUserName.textContent = state.auth.full_name || state.auth.email;
+  els.currentUserMeta.textContent = `${state.auth.role || "employee"} | ${state.auth.email || "-"}`;
+  els.workspaceSubtitle.textContent = isAdmin ? "Equity operations workspace" : "Your ESOP workspace";
+  els.poolPanel.classList.toggle("hidden", !isAdmin);
+
+  if (!state.allowedScreens.includes(state.currentScreen)) {
+    navigate("dashboard");
+  }
+}
+
 function renderMetrics() {
   const summary = state.dashboard;
   if (!summary) {
@@ -204,16 +262,24 @@ function renderMetrics() {
     return;
   }
 
-  const metrics = [
-    ["Total Employees", summary.total_employees],
-    ["Active Employees", summary.active_employees],
-    ["Total Grants", summary.total_grants],
-    ["Pool Allocated", summary.pool_allocated],
-    ["Pool Remaining", summary.pool_remaining],
-    ["Vested Options", summary.vested_options],
-    ["Unvested Options", summary.unvested_options],
-    ["Exercised Options", summary.exercised_options],
-  ];
+  const isAdmin = state.auth.role === "admin";
+  const metrics = isAdmin
+    ? [
+        ["Total Employees", summary.total_employees],
+        ["Active Employees", summary.active_employees],
+        ["Total Grants", summary.total_grants],
+        ["Pool Allocated", summary.pool_allocated],
+        ["Pool Remaining", summary.pool_remaining],
+        ["Vested Options", summary.vested_options],
+        ["Unvested Options", summary.unvested_options],
+        ["Exercised Options", summary.exercised_options],
+      ]
+    : [
+        ["My Grants", summary.total_grants],
+        ["Vested Options", summary.vested_options],
+        ["Unvested Options", summary.unvested_options],
+        ["Exercised Options", summary.exercised_options],
+      ];
 
   els.metricsGrid.innerHTML = metrics
     .map(
@@ -268,7 +334,9 @@ function filteredEmployees() {
 
 function renderEmployees() {
   const employees = filteredEmployees();
-  els.employeeCountText.textContent = `${employees.length} records`;
+  if (els.employeeCountText) {
+    els.employeeCountText.textContent = `${employees.length} records`;
+  }
 
   if (!employees.length) {
     els.employeesTableBody.innerHTML = '<tr><td class="empty" colspan="6">No matching employees.</td></tr>';
@@ -324,7 +392,9 @@ function combinedGrantRows() {
 
 function renderGrants() {
   const rows = combinedGrantRows();
-  els.grantCountText.textContent = `${rows.length} grants`;
+  if (els.grantCountText) {
+    els.grantCountText.textContent = `${rows.length} grants`;
+  }
 
   if (!rows.length) {
     els.grantsTableBody.innerHTML = '<tr><td class="empty" colspan="7">No grants to display.</td></tr>';
@@ -386,7 +456,7 @@ function renderExerciseHistory() {
 
   if (!grant) {
     els.exerciseGrantSummary.textContent = "No grants available.";
-    els.exerciseTableBody.innerHTML = '<tr><td class="empty" colspan="4">Create a grant to start recording exercises.</td></tr>';
+    els.exerciseTableBody.innerHTML = '<tr><td class="empty" colspan="4">No data available.</td></tr>';
     return;
   }
 
@@ -454,20 +524,26 @@ function setupNav() {
 }
 
 function setupFilters() {
-  els.employeeSearch.addEventListener("input", (event) => {
-    state.employeeSearch = event.target.value;
-    renderEmployees();
-  });
+  if (els.employeeSearch) {
+    els.employeeSearch.addEventListener("input", (event) => {
+      state.employeeSearch = event.target.value;
+      renderEmployees();
+    });
+  }
 
-  els.employeeStatusFilter.addEventListener("change", (event) => {
-    state.employeeStatus = event.target.value;
-    renderEmployees();
-  });
+  if (els.employeeStatusFilter) {
+    els.employeeStatusFilter.addEventListener("change", (event) => {
+      state.employeeStatus = event.target.value;
+      renderEmployees();
+    });
+  }
 
-  els.grantSearch.addEventListener("input", (event) => {
-    state.grantSearch = event.target.value;
-    renderGrants();
-  });
+  if (els.grantSearch) {
+    els.grantSearch.addEventListener("input", (event) => {
+      state.grantSearch = event.target.value;
+      renderGrants();
+    });
+  }
 }
 
 function setupTopbar() {
@@ -485,120 +561,165 @@ function setupTopbar() {
       .then(() => showToast("Data refreshed"))
       .catch((error) => showToast(error.message, "error"));
   });
+
+  els.logoutBtn.addEventListener("click", async () => {
+    await api("/api/auth/logout", { method: "POST" });
+    state.auth.authenticated = false;
+    renderAuthGate();
+    showToast("Logged out");
+  });
 }
 
 function setupForms() {
   const today = new Date().toISOString().slice(0, 10);
 
-  els.employeeForm.querySelector('input[name="joining_date"]').value = today;
-  els.grantForm.querySelector('input[name="grant_date"]').value = today;
-  els.grantForm.querySelector('input[name="vesting_start_date"]').value = today;
-  els.exerciseForm.querySelector('input[name="exercise_date"]').value = today;
+  if (els.employeeForm) {
+    els.employeeForm.querySelector('input[name="joining_date"]').value = today;
+  }
+  if (els.grantForm) {
+    els.grantForm.querySelector('input[name="grant_date"]').value = today;
+    els.grantForm.querySelector('input[name="vesting_start_date"]').value = today;
+  }
+  if (els.exerciseForm) {
+    els.exerciseForm.querySelector('input[name="exercise_date"]').value = today;
+  }
 
-  els.employeeForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    clearMessage(els.employeeMessage);
-    const formData = new FormData(event.target);
+  if (state.auth.role === "admin" && els.employeeForm) {
+    els.employeeForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      clearMessage(els.employeeMessage);
+      const formData = new FormData(event.target);
 
-    const payload = {
-      employee_code: String(formData.get("employee_code") || "").trim(),
-      full_name: String(formData.get("full_name") || "").trim(),
-      email: String(formData.get("email") || "").trim(),
-      joining_date: formData.get("joining_date"),
-      status: "active",
-    };
+      const payload = {
+        employee_code: String(formData.get("employee_code") || "").trim(),
+        full_name: String(formData.get("full_name") || "").trim(),
+        email: String(formData.get("email") || "").trim(),
+        joining_date: formData.get("joining_date"),
+        status: "active",
+      };
 
-    try {
-      await api("/api/employees", { method: "POST", body: JSON.stringify(payload) });
-      setMessage(els.employeeMessage, "Employee created", true);
-      event.target.reset();
-      els.employeeForm.querySelector('input[name="joining_date"]').value = today;
-      await refreshCoreData();
-      showToast("Employee added");
-    } catch (error) {
-      setMessage(els.employeeMessage, error.message, false);
-      showToast(error.message, "error");
-    }
-  });
+      try {
+        await api("/api/employees", { method: "POST", body: JSON.stringify(payload) });
+        setMessage(els.employeeMessage, "Employee created", true);
+        event.target.reset();
+        els.employeeForm.querySelector('input[name="joining_date"]').value = today;
+        await refreshCoreData();
+        showToast("Employee added");
+      } catch (error) {
+        setMessage(els.employeeMessage, error.message, false);
+        showToast(error.message, "error");
+      }
+    });
+  }
 
-  els.grantForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    clearMessage(els.grantMessage);
-    const formData = new FormData(event.target);
+  if (state.auth.role === "admin" && els.grantForm) {
+    els.grantForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      clearMessage(els.grantMessage);
+      const formData = new FormData(event.target);
 
-    const payload = {
-      employee_id: Number(formData.get("employee_id")),
-      grant_name: String(formData.get("grant_name") || "").trim(),
-      grant_date: formData.get("grant_date"),
-      vesting_start_date: formData.get("vesting_start_date"),
-      total_options: Number(formData.get("total_options")),
-      strike_price_cents: dollarsToCents(formData.get("strike_price_dollars")),
-      cliff_months: Number(formData.get("cliff_months")),
-      vesting_months: Number(formData.get("vesting_months")),
-      vesting_frequency_months: Number(formData.get("vesting_frequency_months")),
-      notes: String(formData.get("notes") || "").trim() || null,
-    };
+      const payload = {
+        employee_id: Number(formData.get("employee_id")),
+        grant_name: String(formData.get("grant_name") || "").trim(),
+        grant_date: formData.get("grant_date"),
+        vesting_start_date: formData.get("vesting_start_date"),
+        total_options: Number(formData.get("total_options")),
+        strike_price_cents: dollarsToCents(formData.get("strike_price_dollars")),
+        cliff_months: Number(formData.get("cliff_months")),
+        vesting_months: Number(formData.get("vesting_months")),
+        vesting_frequency_months: Number(formData.get("vesting_frequency_months")),
+        notes: String(formData.get("notes") || "").trim() || null,
+      };
 
-    try {
-      await api("/api/grants", { method: "POST", body: JSON.stringify(payload) });
-      setMessage(els.grantMessage, "Grant created", true);
-      event.target.reset();
-      els.grantForm.querySelector('input[name="grant_date"]').value = today;
-      els.grantForm.querySelector('input[name="vesting_start_date"]').value = today;
-      els.grantForm.querySelector('input[name="grant_name"]').value = "ESOP Grant";
-      els.grantForm.querySelector('input[name="cliff_months"]').value = "12";
-      els.grantForm.querySelector('input[name="vesting_months"]').value = "48";
-      els.grantForm.querySelector('input[name="vesting_frequency_months"]').value = "1";
-      await refreshCoreData();
-      showToast("Grant created");
-    } catch (error) {
-      setMessage(els.grantMessage, error.message, false);
-      showToast(error.message, "error");
-    }
-  });
-
-  els.exerciseGrantSelect.addEventListener("change", async (event) => {
-    const grantId = Number(event.target.value);
-    state.selectedExerciseGrantId = grantId;
-    els.exerciseHistoryGrantSelect.value = String(grantId);
-    await loadExerciseHistory(grantId).catch((error) => showToast(error.message, "error"));
-  });
+      try {
+        await api("/api/grants", { method: "POST", body: JSON.stringify(payload) });
+        setMessage(els.grantMessage, "Grant created", true);
+        event.target.reset();
+        els.grantForm.querySelector('input[name="grant_date"]').value = today;
+        els.grantForm.querySelector('input[name="vesting_start_date"]').value = today;
+        els.grantForm.querySelector('input[name="grant_name"]').value = "ESOP Grant";
+        els.grantForm.querySelector('input[name="cliff_months"]').value = "12";
+        els.grantForm.querySelector('input[name="vesting_months"]').value = "48";
+        els.grantForm.querySelector('input[name="vesting_frequency_months"]').value = "1";
+        await refreshCoreData();
+        showToast("Grant created");
+      } catch (error) {
+        setMessage(els.grantMessage, error.message, false);
+        showToast(error.message, "error");
+      }
+    });
+  }
 
   els.exerciseHistoryGrantSelect.addEventListener("change", async (event) => {
     const grantId = Number(event.target.value);
     state.selectedExerciseGrantId = grantId;
-    els.exerciseGrantSelect.value = String(grantId);
+    if (state.auth.role === "admin") {
+      els.exerciseGrantSelect.value = String(grantId);
+    }
     await loadExerciseHistory(grantId).catch((error) => showToast(error.message, "error"));
   });
 
-  els.exerciseForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    clearMessage(els.exerciseMessage);
-    const formData = new FormData(event.target);
-    const grantId = Number(formData.get("grant_id"));
-
-    const payload = {
-      exercise_date: formData.get("exercise_date"),
-      options_exercised: Number(formData.get("options_exercised")),
-      price_per_option_cents: dollarsToCents(formData.get("price_per_option_dollars")),
-    };
-
-    try {
-      await api(`/api/grants/${grantId}/exercises`, { method: "POST", body: JSON.stringify(payload) });
-      setMessage(els.exerciseMessage, "Exercise recorded", true);
-      event.target.reset();
-      els.exerciseForm.querySelector('input[name="exercise_date"]').value = today;
+  if (state.auth.role === "admin") {
+    els.exerciseGrantSelect.addEventListener("change", async (event) => {
+      const grantId = Number(event.target.value);
       state.selectedExerciseGrantId = grantId;
-      await refreshCoreData();
-      showToast("Exercise recorded");
-    } catch (error) {
-      setMessage(els.exerciseMessage, error.message, false);
-      showToast(error.message, "error");
-    }
-  });
+      els.exerciseHistoryGrantSelect.value = String(grantId);
+      await loadExerciseHistory(grantId).catch((error) => showToast(error.message, "error"));
+    });
+
+    els.exerciseForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      clearMessage(els.exerciseMessage);
+      const formData = new FormData(event.target);
+      const grantId = Number(formData.get("grant_id"));
+
+      const payload = {
+        exercise_date: formData.get("exercise_date"),
+        options_exercised: Number(formData.get("options_exercised")),
+        price_per_option_cents: dollarsToCents(formData.get("price_per_option_dollars")),
+      };
+
+      try {
+        await api(`/api/grants/${grantId}/exercises`, { method: "POST", body: JSON.stringify(payload) });
+        setMessage(els.exerciseMessage, "Exercise recorded", true);
+        event.target.reset();
+        els.exerciseForm.querySelector('input[name="exercise_date"]').value = today;
+        state.selectedExerciseGrantId = grantId;
+        await refreshCoreData();
+        showToast("Exercise recorded");
+      } catch (error) {
+        setMessage(els.exerciseMessage, error.message, false);
+        showToast(error.message, "error");
+      }
+    });
+  }
+}
+
+async function loadSession() {
+  const session = await api("/api/auth/me");
+  if (!session.authenticated || !session.user) {
+    state.auth = { authenticated: false, role: null, full_name: "", email: "", employee_id: null };
+    return;
+  }
+
+  state.auth = {
+    authenticated: true,
+    role: session.user.role,
+    full_name: session.user.full_name,
+    email: session.user.email,
+    employee_id: session.user.employee_id,
+  };
 }
 
 async function bootstrap() {
+  await loadSession();
+  renderAuthGate();
+
+  if (!state.auth.authenticated) {
+    return;
+  }
+
+  applyRoleUI();
   setupNav();
   setupTopbar();
   setupFilters();

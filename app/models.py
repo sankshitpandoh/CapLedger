@@ -12,6 +12,11 @@ class EmployeeStatus(str, Enum):
     INACTIVE = "inactive"
 
 
+class UserRole(str, Enum):
+    ADMIN = "admin"
+    EMPLOYEE = "employee"
+
+
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -33,6 +38,7 @@ class Employee(Base):
     )
 
     grants: Mapped[list["Grant"]] = relationship(back_populates="employee", cascade="all, delete-orphan")
+    user: Mapped["User | None"] = relationship(back_populates="employee", uselist=False)
 
 
 class Grant(Base):
@@ -69,3 +75,21 @@ class Exercise(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
     grant: Mapped[Grant] = relationship(back_populates="exercises")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    full_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    google_sub: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    role: Mapped[UserRole] = mapped_column(SQLEnum(UserRole), default=UserRole.EMPLOYEE, nullable=False, index=True)
+    employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), unique=True, nullable=True, index=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+    employee: Mapped[Employee | None] = relationship(back_populates="user")

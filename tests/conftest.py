@@ -1,6 +1,7 @@
 from collections.abc import Generator
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,9 +10,10 @@ from sqlalchemy.orm import Session, sessionmaker
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.api.deps import get_db_session
+from app.api.deps import get_current_user, get_current_user_optional, get_db_session
 from app.core.database import Base
 from app.main import app
+from app.models import UserRole
 
 
 @pytest.fixture()
@@ -29,7 +31,17 @@ def client(tmp_path) -> Generator[TestClient, None, None]:
         finally:
             db.close()
 
+    fake_admin = SimpleNamespace(
+        id=1,
+        email="admin@company.com",
+        full_name="Admin User",
+        role=UserRole.ADMIN,
+        employee_id=None,
+    )
+
     app.dependency_overrides[get_db_session] = override_get_db
+    app.dependency_overrides[get_current_user] = lambda: fake_admin
+    app.dependency_overrides[get_current_user_optional] = lambda: fake_admin
 
     with TestClient(app) as test_client:
         yield test_client
