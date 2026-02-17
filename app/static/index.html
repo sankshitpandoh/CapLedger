@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ESOP Management Tool</title>
+    <style>
+      :root {
+        --bg: #ecf4f3;
+        --bg-accent: #dceef0;
+        --surface: #ffffff;
+        --surface-soft: #f6fbfb;
+        --ink: #102a37;
+        --muted: #4d6470;
+        --line: #d2e1e4;
+        --brand: #0a6d78;
+        --brand-deep: #084a61;
+        --success: #0b7a63;
+        --danger: #b42318;
+        --shadow: 0 14px 36px rgba(16, 42, 55, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Sora", "Avenir Next", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 12% 14%, #d2f5ec 0, transparent 38%),
+          radial-gradient(circle at 90% 0%, #c8dbf7 0, transparent 35%),
+          linear-gradient(150deg, var(--bg), var(--bg-accent));
+      }
+
+      .app-shell {
+        display: grid;
+        min-height: 100vh;
+        grid-template-columns: 240px 1fr;
+      }
+
+      .sidebar {
+        padding: 22px;
+        border-right: 1px solid rgba(255, 255, 255, 0.45);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.18));
+        backdrop-filter: blur(12px);
+      }
+
+      .brand {
+        margin-bottom: 26px;
+      }
+
+      .brand h1 {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.2;
+      }
+
+      .brand p {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .nav {
+        display: grid;
+        gap: 8px;
+      }
+
+      .nav-btn {
+        border: 0;
+        border-radius: 10px;
+        padding: 11px 12px;
+        text-align: left;
+        font: inherit;
+        color: var(--ink);
+        background: transparent;
+        cursor: pointer;
+        transition: background 0.2s ease, transform 0.2s ease;
+      }
+
+      .nav-btn:hover {
+        background: rgba(255, 255, 255, 0.6);
+      }
+
+      .nav-btn.active {
+        color: #fff;
+        background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+        box-shadow: 0 8px 18px rgba(10, 109, 120, 0.35);
+      }
+
+      .content {
+        padding: 24px;
+        overflow-x: hidden;
+      }
+
+      .topbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .title-wrap h2 {
+        margin: 0;
+        font-size: 26px;
+      }
+
+      .title-wrap p {
+        margin: 5px 0 0;
+        color: var(--muted);
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: end;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .toolbar label {
+        font-size: 12px;
+        color: var(--muted);
+        display: grid;
+        gap: 4px;
+      }
+
+      .input,
+      select,
+      textarea,
+      button {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px 11px;
+        font: inherit;
+        color: var(--ink);
+        background: #fff;
+      }
+
+      textarea {
+        min-height: 88px;
+        resize: vertical;
+      }
+
+      button {
+        border: 0;
+        color: #fff;
+        background: linear-gradient(135deg, var(--brand), var(--brand-deep));
+        cursor: pointer;
+        font-weight: 600;
+        transition: transform 0.15s ease, filter 0.2s ease;
+      }
+
+      button:hover {
+        filter: brightness(0.95);
+        transform: translateY(-1px);
+      }
+
+      .ghost {
+        color: var(--brand-deep);
+        background: #e7f4f6;
+      }
+
+      .screen {
+        display: none;
+        animation: rise 0.38s ease;
+      }
+
+      .screen.active {
+        display: block;
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .kpi-grid {
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        padding: 15px;
+      }
+
+      .panel h3 {
+        margin: 0 0 10px;
+        font-size: 15px;
+      }
+
+      .panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+
+      .panel-head p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .kpi-title {
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .kpi-value {
+        margin-top: 4px;
+        font-size: 25px;
+        font-weight: 700;
+      }
+
+      .progress {
+        width: 100%;
+        height: 12px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: #e3eff2;
+        margin-top: 8px;
+      }
+
+      .progress > div {
+        height: 100%;
+        background: linear-gradient(90deg, var(--brand), #17b39b);
+      }
+
+      .two-col {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: 380px 1fr;
+      }
+
+      .three-col {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: 360px 1fr;
+      }
+
+      form {
+        display: grid;
+        gap: 9px;
+      }
+
+      label {
+        color: var(--muted);
+        font-size: 12px;
+        display: grid;
+        gap: 5px;
+      }
+
+      .split {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .hint {
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .message {
+        font-size: 13px;
+        min-height: 18px;
+      }
+
+      .message.success {
+        color: var(--success);
+      }
+
+      .message.error {
+        color: var(--danger);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        overflow: hidden;
+      }
+
+      th,
+      td {
+        padding: 10px;
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        color: var(--muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-size: 11px;
+        background: var(--surface-soft);
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      .toolbar-inline {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .toolbar-inline .input,
+      .toolbar-inline select {
+        min-width: 130px;
+      }
+
+      .toast {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        color: #fff;
+        background: var(--brand-deep);
+        box-shadow: 0 10px 20px rgba(8, 74, 97, 0.25);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-8px);
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 50;
+      }
+
+      .toast.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .toast.error {
+        background: var(--danger);
+      }
+
+      .empty {
+        color: var(--muted);
+        text-align: center;
+        padding: 18px;
+      }
+
+      .fade-item {
+        animation: rise 0.4s ease both;
+      }
+
+      .fade-item:nth-child(2) {
+        animation-delay: 0.04s;
+      }
+
+      .fade-item:nth-child(3) {
+        animation-delay: 0.08s;
+      }
+
+      .fade-item:nth-child(4) {
+        animation-delay: 0.12s;
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 1020px) {
+        .app-shell {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          border-right: 0;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.45);
+          padding: 14px;
+        }
+
+        .brand {
+          margin-bottom: 10px;
+        }
+
+        .nav {
+          grid-auto-flow: column;
+          grid-auto-columns: minmax(110px, 1fr);
+          overflow-x: auto;
+        }
+
+        .two-col,
+        .three-col {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <h1>ESOP Manager</h1>
+          <p>Equity operations workspace</p>
+        </div>
+
+        <nav class="nav" id="navButtons">
+          <button class="nav-btn" type="button" data-screen="dashboard">Dashboard</button>
+          <button class="nav-btn" type="button" data-screen="employees">Employees</button>
+          <button class="nav-btn" type="button" data-screen="grants">Grants</button>
+          <button class="nav-btn" type="button" data-screen="exercises">Exercises</button>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div class="title-wrap">
+            <h2 id="screenTitle">Dashboard</h2>
+            <p id="screenSubtitle">Real-time ESOP metrics and vesting position.</p>
+          </div>
+
+          <div class="toolbar">
+            <label>
+              As-of Date
+              <input id="asOfDate" class="input" type="date" />
+            </label>
+            <button id="refreshDataBtn" type="button" class="ghost">Refresh</button>
+          </div>
+        </header>
+
+        <section class="screen" id="screen-dashboard">
+          <div class="grid kpi-grid" id="metricsGrid"></div>
+
+          <div class="grid" style="margin-top: 16px">
+            <article class="panel fade-item">
+              <div class="panel-head">
+                <div>
+                  <h3>Pool Utilization</h3>
+                  <p id="poolText">-</p>
+                </div>
+              </div>
+              <div class="progress"><div id="poolProgressBar" style="width: 0%"></div></div>
+            </article>
+
+            <article class="panel fade-item">
+              <div class="panel-head">
+                <div>
+                  <h3>Grant Vesting Snapshot</h3>
+                  <p>As of selected date</p>
+                </div>
+              </div>
+              <div style="overflow-x: auto">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Grant</th>
+                      <th>Employee</th>
+                      <th>Total</th>
+                      <th>Vested</th>
+                      <th>Exercised</th>
+                      <th>Available</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dashboardGrantTableBody"></tbody>
+                </table>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="screen" id="screen-employees">
+          <div class="two-col">
+            <article class="panel fade-item">
+              <h3>Add Employee</h3>
+              <form id="employeeForm">
+                <label>Employee Code <input class="input" required name="employee_code" /></label>
+                <label>Full Name <input class="input" required name="full_name" /></label>
+                <label>Email <input class="input" required name="email" type="email" /></label>
+                <label>Joining Date <input class="input" required name="joining_date" type="date" /></label>
+                <button type="submit">Create Employee</button>
+                <div class="message" id="employeeMessage"></div>
+              </form>
+              <p class="hint">New employees are created as active by default.</p>
+            </article>
+
+            <article class="panel fade-item">
+              <div class="panel-head">
+                <h3>Employee Directory</h3>
+                <p id="employeeCountText">0 records</p>
+              </div>
+              <div class="toolbar-inline">
+                <input class="input" id="employeeSearch" placeholder="Search name/code/email" />
+                <select id="employeeStatusFilter">
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <div style="overflow-x: auto">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Code</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Status</th>
+                      <th>Joined</th>
+                    </tr>
+                  </thead>
+                  <tbody id="employeesTableBody"></tbody>
+                </table>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="screen" id="screen-grants">
+          <div class="three-col">
+            <article class="panel fade-item">
+              <h3>Create Grant</h3>
+              <form id="grantForm">
+                <label>Employee
+                  <select class="input" name="employee_id" id="grantEmployeeSelect" required></select>
+                </label>
+                <label>Grant Name <input class="input" required name="grant_name" value="ESOP Grant" /></label>
+                <div class="split">
+                  <label>Grant Date <input class="input" required name="grant_date" type="date" /></label>
+                  <label>Vesting Start <input class="input" required name="vesting_start_date" type="date" /></label>
+                </div>
+                <label>Total Options <input class="input" required name="total_options" type="number" min="1" /></label>
+                <label>Strike Price (USD)
+                  <input class="input" required name="strike_price_dollars" type="number" min="0" step="0.01" />
+                </label>
+                <div class="split">
+                  <label>Cliff (months) <input class="input" name="cliff_months" type="number" min="0" value="12" /></label>
+                  <label>Term (months) <input class="input" name="vesting_months" type="number" min="1" value="48" /></label>
+                </div>
+                <label>Frequency (months) <input class="input" name="vesting_frequency_months" type="number" min="1" value="1" /></label>
+                <label>Notes <textarea name="notes"></textarea></label>
+                <button type="submit">Create Grant</button>
+                <div class="message" id="grantMessage"></div>
+              </form>
+            </article>
+
+            <article class="panel fade-item">
+              <div class="panel-head">
+                <h3>Grant Ledger</h3>
+                <p id="grantCountText">0 grants</p>
+              </div>
+              <div class="toolbar-inline">
+                <input class="input" id="grantSearch" placeholder="Search grant or employee" />
+              </div>
+              <div style="overflow-x: auto">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Grant</th>
+                      <th>Employee</th>
+                      <th>Total</th>
+                      <th>Strike</th>
+                      <th>Schedule</th>
+                      <th>Vested</th>
+                      <th>Available</th>
+                    </tr>
+                  </thead>
+                  <tbody id="grantsTableBody"></tbody>
+                </table>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="screen" id="screen-exercises">
+          <div class="three-col">
+            <article class="panel fade-item">
+              <h3>Record Exercise</h3>
+              <form id="exerciseForm">
+                <label>Grant
+                  <select class="input" name="grant_id" id="exerciseGrantSelect" required></select>
+                </label>
+                <label>Exercise Date <input class="input" required name="exercise_date" type="date" /></label>
+                <label>Options Exercised <input class="input" required name="options_exercised" type="number" min="1" /></label>
+                <label>Price Per Option (USD)
+                  <input class="input" name="price_per_option_dollars" type="number" min="0" step="0.01" />
+                </label>
+                <button type="submit">Record Exercise</button>
+                <div class="message" id="exerciseMessage"></div>
+              </form>
+            </article>
+
+            <article class="panel fade-item">
+              <div class="panel-head">
+                <div>
+                  <h3>Exercise History</h3>
+                  <p id="exerciseGrantSummary">Select a grant to inspect exercises.</p>
+                </div>
+                <select class="input" id="exerciseHistoryGrantSelect"></select>
+              </div>
+              <div style="overflow-x: auto">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Options</th>
+                      <th>Price/Option</th>
+                      <th>Total Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody id="exerciseTableBody"></tbody>
+                </table>
+              </div>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
